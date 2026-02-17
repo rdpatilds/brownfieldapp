@@ -16,6 +16,7 @@
         "@supabase/ssr": "^0.8.0",
         "@supabase/supabase-js": "^2.89.0",
         "@tailwindcss/typography": "^0.5.19",
+        "chargebee": "^3.21.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "drizzle-orm": "^0.45.1",
@@ -479,6 +480,8 @@
     "character-entities-legacy": ["character-entities-legacy@3.0.0", "", {}, "sha512-RpPp0asT/6ufRm//AJVwpViZbGM/MkjQFxJccQRHmISF/22NBtsHqAWmL+/pmkPWoIUJdWyeVleTl1wydHATVQ=="],
 
     "character-reference-invalid": ["character-reference-invalid@2.0.1", "", {}, "sha512-iBZ4F4wRbyORVsu0jPV7gXkOsGYjGHPmAyv+HiHG8gi5PtC9KI2j1+v8/tlibRvjoWX027ypmG/n0HtO5t7unw=="],
+
+    "chargebee": ["chargebee@3.21.0", "", {}, "sha512-lsXoeSqPtQPEexc2+mqrlyZK+OS8QGwK9jdpB+jYOG3FBvfSgGYnWknUHzCsuTUNnwBoyJrbgEQYBcSOotUDuA=="],
 
     "class-variance-authority": ["class-variance-authority@0.7.1", "", { "dependencies": { "clsx": "^2.1.1" } }, "sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg=="],
 

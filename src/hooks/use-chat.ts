@@ -5,6 +5,11 @@ import { toast } from "sonner";
 
 import { useLocalStorage } from "./use-local-storage";
 
+interface UseChatOptions {
+  onTokenRefunded?: () => void;
+  onBalanceUpdate?: (balance: number) => void;
+}
+
 interface ChatMessage {
   id: string;
   conversationId: string;
@@ -17,6 +22,7 @@ interface ChatMessage {
 async function readSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onChunk: (accumulated: string) => void,
+  onRefund?: () => void,
 ): Promise<string> {
   const decoder = new TextDecoder();
   let accumulated = "";
@@ -48,6 +54,11 @@ async function readSSEStream(
           toast.error(parsed.message ?? "Response may not have been saved");
           continue;
         }
+        if (parsed.type === "refund") {
+          toast.info(parsed.message ?? "Token refunded");
+          onRefund?.();
+          continue;
+        }
         if (parsed.type === "done") {
           continue;
         }
@@ -75,7 +86,7 @@ function makeTempMessage(conversationId: string, role: string, content: string):
   };
 }
 
-export function useChat() {
+export function useChat(options: UseChatOptions = {}) {
   const {
     items: conversations,
     addItem,
@@ -145,8 +156,19 @@ export function useChat() {
           signal: abortController.signal,
         });
 
+        if (res.status === 402) {
+          toast.error("Insufficient tokens — purchase more to continue");
+          setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
+          return;
+        }
+
         if (!res.ok) {
           throw new Error("Failed to send message");
+        }
+
+        const tokenBalance = res.headers.get("X-Token-Balance");
+        if (tokenBalance !== null) {
+          options.onBalanceUpdate?.(Number.parseInt(tokenBalance, 10));
         }
 
         const conversationId = res.headers.get("X-Conversation-Id");
@@ -168,7 +190,11 @@ export function useChat() {
           throw new Error("No reader");
         }
 
-        const accumulated = await readSSEStream(reader, setStreamingContent);
+        const accumulated = await readSSEStream(
+          reader,
+          setStreamingContent,
+          options.onTokenRefunded,
+        );
 
         if (accumulated) {
           const assistantMessage = makeTempMessage(
@@ -190,7 +216,7 @@ export function useChat() {
         setStreamingContent("");
       }
     },
-    [activeConversationId, isStreaming, addItem, updateItem],
+    [activeConversationId, isStreaming, addItem, updateItem, options],
   );
 
   const selectConversation = useCallback((id: string) => {

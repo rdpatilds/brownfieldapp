@@ -9,7 +9,7 @@ const logger = getLogger("api.errors");
 /**
  * Valid HTTP status codes for API errors.
  */
-export type HttpStatusCode = 400 | 401 | 403 | 404 | 409 | 500 | 502;
+export type HttpStatusCode = 400 | 401 | 402 | 403 | 404 | 409 | 500 | 502;
 
 /**
  * Shape of errors that carry HTTP semantics.
@@ -21,7 +21,7 @@ interface HttpError {
   statusCode: HttpStatusCode;
 }
 
-const VALID_STATUS_CODES = new Set<HttpStatusCode>([400, 401, 403, 404, 409, 500, 502]);
+const VALID_STATUS_CODES = new Set<HttpStatusCode>([400, 401, 402, 403, 404, 409, 500, 502]);
 
 /**
  * Check if an error has HTTP error properties.

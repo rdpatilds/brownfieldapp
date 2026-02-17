@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/core/supabase/server";
+import { grantSignupTokens } from "@/features/billing";
 
 export interface RegisterState {
   error?: string;
@@ -47,6 +48,15 @@ export async function register(
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Grant signup tokens
+  if (data.user) {
+    try {
+      await grantSignupTokens(data.user.id);
+    } catch {
+      // Don't fail signup if token grant fails
+    }
   }
 
   // Check if email confirmation is required

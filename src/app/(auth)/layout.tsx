@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 
 import { createClient } from "@/core/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 interface AuthLayoutProps {
   children: ReactNode;
 }

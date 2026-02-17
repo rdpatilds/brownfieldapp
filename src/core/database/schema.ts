@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Base timestamp columns for all tables.
@@ -56,11 +56,11 @@ export const projects = pgTable("projects", {
 
 /**
  * Conversations table - stores chat conversations.
- * No owner since auth is not required.
  */
 export const chatConversations = pgTable("chat_conversations", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   ...timestamps,
 });
 
@@ -74,5 +74,28 @@ export const chatMessages = pgTable("chat_messages", {
     .references(() => chatConversations.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
   content: text("content").notNull(),
+  ...timestamps,
+});
+
+/** Token balances - one row per user, atomic balance tracking. */
+export const tokenBalances = pgTable("token_balances", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  balance: integer("balance").notNull().default(0),
+  ...timestamps,
+});
+
+/** Token transactions - audit log of all credits and debits. */
+export const tokenTransactions = pgTable("token_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  amount: integer("amount").notNull(),
+  type: text("type").notNull(),
+  referenceId: text("reference_id"),
+  description: text("description"),
+  balanceAfter: integer("balance_after").notNull(),
   ...timestamps,
 });

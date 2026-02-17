@@ -1,7 +1,9 @@
 import type { NextRequest } from "next/server";
 
-import { handleApiError } from "@/core/api/errors";
+import { handleApiError, unauthorizedResponse } from "@/core/api/errors";
 import { getLogger } from "@/core/logging";
+import { createClient } from "@/core/supabase/server";
+import { consumeToken, refundToken } from "@/features/billing";
 import {
   addMessage,
   createConversation,
@@ -22,11 +24,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { content, conversationId: existingConversationId } = SendMessageSchema.parse(body);
 
+    // Auth check
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return unauthorizedResponse();
+    }
+
+    let conversationId = existingConversationId ?? "";
+
+    // Consume token (throws 402 if insufficient)
+    const remainingBalance = await consumeToken(user.id, conversationId || "new");
+
     // Create conversation if needed
-    let conversationId = existingConversationId;
-    if (!conversationId) {
+    if (!existingConversationId) {
       const title = generateTitleFromMessage(content);
-      const conversation = await createConversation(title);
+      const conversation = await createConversation(title, user.id);
       conversationId = conversation.id;
       logger.info({ conversationId }, "chat.conversation_created");
     }
@@ -60,6 +75,17 @@ export async function POST(request: NextRequest) {
           );
         } catch (err) {
           logger.error({ conversationId, error: err }, "chat.assistant_message_save_failed");
+          // Refund the token
+          try {
+            await refundToken(user.id, conversationId);
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "refund", message: "Response failed, token refunded" })}\n\n`,
+              ),
+            );
+          } catch (refundErr) {
+            logger.error({ conversationId, error: refundErr }, "chat.refund_failed");
+          }
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({ type: "error", message: "Failed to save response" })}\n\n`,
@@ -77,6 +103,7 @@ export async function POST(request: NextRequest) {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "X-Conversation-Id": conversationId,
+        "X-Token-Balance": String(remainingBalance),
       },
     });
   } catch (error) {

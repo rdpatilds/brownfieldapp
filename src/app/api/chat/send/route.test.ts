@@ -6,6 +6,7 @@ import type { Conversation, Message } from "@/features/chat";
 const mockConversation: Conversation = {
   id: "conv-123",
   title: "Test Conversation",
+  userId: null,
   createdAt: new Date("2024-01-01"),
   updatedAt: new Date("2024-01-01"),
 };
@@ -18,6 +19,37 @@ const mockMessage: Message = {
   createdAt: new Date("2024-01-01"),
   updatedAt: new Date("2024-01-01"),
 };
+
+// Mock user type
+type MockUser = { id: string; email: string } | null;
+const mockUser: MockUser = { id: "user-123", email: "test@example.com" };
+
+// Mock Supabase auth
+const mockGetUser = mock<() => Promise<{ data: { user: MockUser }; error: null }>>(() =>
+  Promise.resolve({ data: { user: mockUser }, error: null }),
+);
+mock.module("@/core/supabase/server", () => ({
+  createClient: () =>
+    Promise.resolve({
+      auth: {
+        getUser: mockGetUser,
+      },
+    }),
+}));
+
+// Mock billing service
+const mockConsumeToken = mock(() => Promise.resolve(9));
+const mockRefundToken = mock(() => Promise.resolve());
+
+mock.module("@/features/billing/repository", () => ({}));
+mock.module("@/features/billing/service", () => ({
+  consumeToken: mockConsumeToken,
+  refundToken: mockRefundToken,
+  grantSignupTokens: mock(() => Promise.resolve()),
+  getTokenBalance: mock(() => Promise.resolve(10)),
+  getTransactionHistory: mock(() => Promise.resolve({ transactions: [], total: 0 })),
+  creditPurchasedTokens: mock(() => Promise.resolve()),
+}));
 
 // Mock the repository (database layer)
 const mockCreateConversation = mock(() => Promise.resolve(mockConversation));
@@ -58,10 +90,29 @@ const { POST } = await import("./route");
 
 describe("POST /api/chat/send", () => {
   beforeEach(() => {
+    mockGetUser.mockClear();
+    mockConsumeToken.mockClear();
+    mockRefundToken.mockClear();
     mockCreateConversation.mockClear();
     mockFindMessagesByConversationId.mockClear();
     mockCreateMessage.mockClear();
     mockStreamChatCompletion.mockClear();
+  });
+
+  it("returns 401 for unauthenticated user", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+
+    const request = new NextRequest("http://localhost:3000/api/chat/send", {
+      method: "POST",
+      body: JSON.stringify({ content: "Hello" }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(data.code).toBe("UNAUTHORIZED");
   });
 
   it("returns SSE response with correct headers", async () => {
@@ -78,7 +129,7 @@ describe("POST /api/chat/send", () => {
     expect(response.headers.get("Connection")).toBe("keep-alive");
   });
 
-  it("returns X-Conversation-Id header", async () => {
+  it("returns X-Conversation-Id and X-Token-Balance headers", async () => {
     const request = new NextRequest("http://localhost:3000/api/chat/send", {
       method: "POST",
       body: JSON.stringify({ content: "Hello" }),
@@ -88,6 +139,20 @@ describe("POST /api/chat/send", () => {
     const response = await POST(request);
 
     expect(response.headers.get("X-Conversation-Id")).toBe("conv-123");
+    expect(response.headers.get("X-Token-Balance")).toBe("9");
+  });
+
+  it("consumes token before processing message", async () => {
+    const request = new NextRequest("http://localhost:3000/api/chat/send", {
+      method: "POST",
+      body: JSON.stringify({ content: "Hello" }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    await POST(request);
+
+    expect(mockConsumeToken).toHaveBeenCalledTimes(1);
+    expect(mockConsumeToken).toHaveBeenCalledWith("user-123", "new");
   });
 
   it("creates new conversation when no conversationId provided", async () => {

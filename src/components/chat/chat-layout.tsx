@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChat } from "@/hooks/use-chat";
+import { useTokens } from "@/hooks/use-tokens";
 
 import { ChatHeader } from "./chat-header";
 import { ChatInput } from "./chat-input";
@@ -12,6 +13,8 @@ import { ChatSidebar } from "./chat-sidebar";
 import { MessageList } from "./message-list";
 
 export function ChatLayout() {
+  const { balance, isLowBalance, hasTokens, refreshBalance, updateBalance } = useTokens();
+
   const {
     conversations,
     activeConversationId,
@@ -24,7 +27,10 @@ export function ChatLayout() {
     createNewChat,
     renameConversation,
     deleteConversation,
-  } = useChat();
+  } = useChat({
+    onTokenRefunded: refreshBalance,
+    onBalanceUpdate: updateBalance,
+  });
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -54,7 +60,12 @@ export function ChatLayout() {
       />
 
       <div className="chat-gradient-bg flex flex-1 flex-col">
-        <ChatHeader title={activeTitle} onToggleSidebar={toggleSidebar} />
+        <ChatHeader
+          title={activeTitle}
+          onToggleSidebar={toggleSidebar}
+          tokenBalance={balance}
+          isLowBalance={isLowBalance}
+        />
 
         {isLoadingMessages && activeConversationId ? (
           <div className="flex-1 overflow-y-auto">
@@ -95,7 +106,7 @@ export function ChatLayout() {
           </div>
         )}
 
-        <ChatInput onSend={sendMessage} disabled={isStreaming} />
+        <ChatInput onSend={sendMessage} disabled={isStreaming} hasTokens={hasTokens} />
       </div>
     </div>
   );

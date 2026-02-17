@@ -6,10 +6,10 @@ import * as repository from "./repository";
 
 const logger = getLogger("chat.service");
 
-export async function createConversation(title: string): Promise<Conversation> {
-  logger.info({ title }, "conversation.create_started");
+export async function createConversation(title: string, userId?: string): Promise<Conversation> {
+  logger.info({ title, userId }, "conversation.create_started");
 
-  const conversation = await repository.createConversation({ title });
+  const conversation = await repository.createConversation({ title, userId });
 
   logger.info({ conversationId: conversation.id }, "conversation.create_completed");
   return conversation;

@@ -5,14 +5,16 @@ import type { KeyboardEvent } from "react";
 import { useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
   disabled: boolean;
+  hasTokens?: boolean;
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, hasTokens = true }: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -37,6 +39,21 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     },
     [handleSend],
   );
+
+  if (!hasTokens) {
+    return (
+      <div className="border-t border-border/50 bg-background/80 p-4 backdrop-blur-sm">
+        <Card className="mx-auto max-w-3xl">
+          <CardContent className="flex flex-col items-center gap-3 py-6">
+            <p className="text-muted-foreground text-sm font-medium">You've used all your tokens</p>
+            <a href="/dashboard/billing">
+              <Button aria-label="Buy more tokens">Buy More Tokens</Button>
+            </a>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="border-t border-border/50 bg-background/80 p-4 backdrop-blur-sm">

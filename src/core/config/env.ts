@@ -43,6 +43,12 @@ export const env = {
   // OpenRouter config (LLM)
   OPENROUTER_API_KEY: getRequiredEnv("OPENROUTER_API_KEY"),
   OPENROUTER_MODEL: getOptionalEnv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5"),
+
+  // Chargebee config (required)
+  CHARGEBEE_SITE: getRequiredEnv("CHARGEBEE_SITE"),
+  CHARGEBEE_API_KEY: getRequiredEnv("CHARGEBEE_API_KEY"),
+  CHARGEBEE_WEBHOOK_USERNAME: getRequiredEnv("CHARGEBEE_WEBHOOK_USERNAME"),
+  CHARGEBEE_WEBHOOK_PASSWORD: getRequiredEnv("CHARGEBEE_WEBHOOK_PASSWORD"),
 } as const;
 
 export type Env = typeof env;
