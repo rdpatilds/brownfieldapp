@@ -2,17 +2,57 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Monorepo Structure
+
+This is a Bun workspaces monorepo with 3 packages:
+
+```
+packages/
+├── shared/     # @chatapp/shared — Types, Zod schemas, constants, socket events
+├── backend/    # @chatapp/backend — Express 5 + Socket.IO 4 server, Drizzle ORM
+└── frontend/   # @chatapp/frontend — Next.js 16, React 19, Tailwind CSS 4
+```
+
+| Package | Role | Key Tech |
+|---------|------|----------|
+| `@chatapp/shared` | Shared types, schemas, constants | Zod v4 |
+| `@chatapp/backend` | REST API + WebSocket server | Express 5, Socket.IO 4, Drizzle ORM, Pino |
+| `@chatapp/frontend` | Web UI | Next.js 16, React 19, Tailwind 4, shadcn/ui |
+
+Packages reference each other via `"@chatapp/shared": "workspace:*"` in their `package.json`.
+
 ## Commands
 
+All commands run from the **monorepo root**:
+
 ```bash
-bun run dev          # Start development server
-bun run build        # Production build (includes type checking)
-bun run lint         # Check for lint/format errors (Biome)
-bun run lint:fix     # Auto-fix lint/format issues
-bun run format       # Format all files
-npx tsc --noEmit     # Type check only (fast, no build)
-bun test             # Run tests with coverage
-bun test --watch     # Watch mode for TDD
+# Development
+bun run dev              # Start backend + frontend in parallel
+bun run dev:backend      # Backend only (bun --watch)
+bun run dev:frontend     # Frontend only (next dev)
+
+# Build (sequential: shared → backend → frontend)
+bun run build            # Full production build
+bun run build:shared     # Compile shared types
+bun run build:backend    # Type check backend (tsc --noEmit)
+bun run build:frontend   # Next.js production build
+
+# Quality
+bun run lint             # Check lint/format errors (Biome)
+bun run lint:fix         # Auto-fix lint/format issues
+bun run format           # Format all files
+
+# Testing
+bun run test             # Run all tests (shared + backend + frontend)
+bun run test:shared      # Shared package tests only
+bun run test:backend     # Backend tests only
+bun run test:frontend    # Frontend tests only
+
+# Database (runs in packages/backend)
+bun run db:generate      # Generate migrations from schema changes
+bun run db:migrate       # Run pending migrations
+bun run db:push          # Push schema directly (dev only)
+bun run db:studio        # Open Drizzle Studio GUI
 ```
 
 ## Self-Correction Workflow
@@ -23,7 +63,7 @@ This project uses strict TypeScript and Biome to create a feedback loop for AI-g
 
 ### After writing or modifying code, always run:
 ```bash
-bun run lint && npx tsc --noEmit
+bun run lint && bun run build
 ```
 
 ### Why this matters for AI development:
@@ -33,9 +73,10 @@ bun run lint && npx tsc --noEmit
   - `noUncheckedIndexedAccess`: Array access returns `T | undefined`, forcing null checks
   - `exactOptionalPropertyTypes`: Stricter optional property handling
   - `verbatimModuleSyntax`: Explicit type imports required
+  - `noPropertyAccessFromIndexSignature`: Must use bracket notation for index signatures
 
 ### Reading error output:
-Errors include file path, line, and column: `src/app/page.tsx:15:3`
+Errors include file path, line, and column: `packages/backend/src/features/projects/service.ts:15:3`
 - Navigate directly to the problem
 - The error message describes what's wrong
 - Fix and re-run until all checks pass
@@ -46,88 +87,102 @@ Tests are executable specifications and provide precise feedback for AI-generate
 
 **Run tests after implementing features:**
 ```bash
-bun test
+bun run test
 ```
 
-**Why tests matter for AI development:**
-- Test failures tell you exactly what's broken: test name, file:line, expected vs actual
-- Tests define "done"—write them first when possible
-- Fast execution (~10x faster than Jest) enables frequent runs
-- Coverage reports (80% threshold) show gaps
-
 **Test file conventions:**
-- Feature slices: place tests in `tests/` subfolder (e.g., `src/features/projects/tests/service.test.ts`)
-- Shared utilities: place tests next to source (e.g., `format.ts` → `format.test.ts`)
+- Backend features: `packages/backend/src/features/{feature}/tests/{name}.test.ts`
+- Shared schemas: `packages/shared/src/schemas/tests/{name}.test.ts`
+- Frontend components: `packages/frontend/src/components/{name}/tests/{name}.test.tsx`
+- Frontend features: `packages/frontend/src/features/{feature}/{name}.test.ts`
 - Use `describe` and `it` blocks from `bun:test`
 - React components: use `@testing-library/react` with `render`, `screen`, `userEvent`
 
 **Self-correction with tests:**
 1. Write test defining expected behavior
 2. Implement the feature
-3. Run `bun test`
+3. Run `bun run test`
 4. If test fails, read the diff (expected vs actual)
 5. Fix and re-run until green
 
 ## Tech Stack
 
-- Next.js 16 with App Router
-- React 19
-- TypeScript (strict mode)
-- Tailwind CSS 4
-- Biome for linting and formatting
-- shadcn/ui for components
-- Bun test runner with React Testing Library
-- Supabase (auth + postgres)
-- Drizzle ORM (type-safe database access)
+- **Frontend**: Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui
+- **Backend**: Express 5, Socket.IO 4, Pino (structured logging)
+- **Shared**: Zod v4 (validation), TypeScript types
+- **Database**: Supabase (auth + Postgres), Drizzle ORM
+- **Tooling**: Bun (runtime + test runner + package manager), Biome (lint + format), TypeScript (strict)
 
-## Vertical Slice Architecture
+## Package Details
 
-Features are organized as self-contained vertical slices in `src/features/`. Each slice owns its entire stack: data model, validation, database operations, business logic, and errors.
+### @chatapp/shared (`packages/shared/`)
 
-**Why vertical slices:**
-- **Independence**: To understand "projects", read `src/features/projects/`. No hunting across layers.
-- **Isolation**: Changes to one feature don't affect others. Easy to add, modify, or delete features.
-- **Consistency**: Every feature follows the same structure, reducing cognitive load.
-- **Testability**: Clear boundaries make unit testing straightforward.
+Shared types, Zod schemas, constants, and socket event definitions. No runtime dependencies except Zod.
+
+```
+packages/shared/src/
+├── index.ts          # Re-exports everything
+├── types/            # TypeScript interfaces (billing, chat, documents, projects, rag)
+├── schemas/          # Zod validation schemas
+├── constants/        # Shared constants (billing, chat, rag)
+└── socket-events.ts  # Socket.IO event type definitions
+```
+
+Import from shared: `import type { DocumentSummary } from "@chatapp/shared";`
+
+### @chatapp/backend (`packages/backend/`)
+
+Express 5 REST API + Socket.IO 4 WebSocket server with vertical slice features.
+
+```
+packages/backend/src/
+├── index.ts          # Server entry point (Express + Socket.IO setup)
+├── config/env.ts     # Validated environment variables
+├── database/         # Drizzle client + schema
+├── supabase/         # Server-side Supabase client
+├── logging/          # Pino logger with context
+├── middleware/       # Auth, CORS, error handler
+├── routes/           # Express route handlers (billing, chat, documents, projects, webhooks, health)
+├── socket/           # Socket.IO handlers (auth, chat)
+└── features/         # Vertical slices (billing, chat, documents, projects, rag)
+```
+
+### @chatapp/frontend (`packages/frontend/`)
+
+Next.js 16 app with App Router, server/client components, and Supabase auth.
+
+```
+packages/frontend/src/
+├── app/              # Next.js App Router pages and layouts
+│   ├── (auth)/       # Login/register pages
+│   └── (dashboard)/  # Authenticated pages (chat, documents, billing)
+├── components/       # React components (chat UI, theme, shadcn/ui primitives)
+├── core/             # Config, Supabase clients (client, server, proxy)
+├── features/auth/    # Auth actions and hooks
+├── hooks/            # Custom hooks (use-chat, use-tokens, use-document-upload)
+├── lib/              # Utilities (api-client, socket, utils)
+└── proxy.ts          # Next.js 16 proxy entry point (replaces middleware.ts)
+```
+
+## Vertical Slice Architecture (Backend)
+
+Features in `packages/backend/src/features/` are self-contained vertical slices. Each slice owns its data model, database operations, business logic, and errors.
 
 ### Feature Structure
 
 ```
-src/features/{feature}/
-├── models.ts      # Drizzle types (re-export from core/database/schema)
-├── schemas.ts     # Zod validation schemas (API contracts)
+packages/backend/src/features/{feature}/
+├── models.ts      # Drizzle types (re-export from database/schema)
 ├── repository.ts  # Database queries (isolated, no business logic)
 ├── service.ts     # Business logic (orchestrates repository + validation + logging)
 ├── errors.ts      # Custom error classes (explicit failure modes)
 ├── index.ts       # Public API (controls what other code can import)
 └── tests/         # All tests for this feature
-    ├── schemas.test.ts
     ├── errors.test.ts
     └── service.test.ts
 ```
 
-### File Responsibilities
-
-| File | Purpose | Imports From |
-|------|---------|--------------|
-| `models.ts` | Re-exports table from `core/database/schema`, defines `Project` and `NewProject` types | `core/database/schema` |
-| `schemas.ts` | Zod schemas for input validation (`CreateProjectSchema`, `UpdateProjectSchema`) | `zod/v4` |
-| `errors.ts` | Feature-specific errors with `code` and `statusCode` for API responses | Nothing (self-contained) |
-| `repository.ts` | Pure database operations (`findById`, `create`, `update`, `delete`) | `core/database/client`, `models.ts` |
-| `service.ts` | Business logic, access control, logging. Calls repository, never touches db directly | `repository.ts`, `errors.ts`, `core/logging` |
-| `index.ts` | Public exports. Exposes service functions and types, hides repository | All feature files |
-
-### Creating a New Feature
-
-1. **Copy an existing feature** (e.g., `projects/`) as a template
-2. **Define the schema** in `core/database/schema.ts` (table definition)
-3. **Update `models.ts`** to re-export the table and infer types
-4. **Create Zod schemas** for input validation
-5. **Define error classes** for failure modes
-6. **Implement repository** with database operations
-7. **Implement service** with business logic and logging
-8. **Export public API** from `index.ts`
-9. **Write tests** in `tests/` subfolder
+Schemas (Zod validation) live in `@chatapp/shared` since they're used by both frontend and backend.
 
 ### Key Patterns
 
@@ -161,101 +216,83 @@ export class ProjectNotFoundError extends ProjectError {
 
 **Public API via index.ts:**
 ```typescript
-// Export types and schemas
 export type { Project, NewProject } from "./models";
-export { CreateProjectSchema, UpdateProjectSchema } from "./schemas";
-
-// Export errors
 export { ProjectNotFoundError, ProjectAccessDeniedError } from "./errors";
-
 // Export service functions (NOT repository - keep it internal)
 export { createProject, getProject, updateProject, deleteProject } from "./service";
 ```
 
-## Database Commands
+### Creating a New Backend Feature
 
-```bash
-bun run db:generate  # Generate migrations from schema changes
-bun run db:migrate   # Run pending migrations
-bun run db:push      # Push schema directly (dev only)
-bun run db:studio    # Open Drizzle Studio GUI
+1. **Copy an existing feature** (e.g., `projects/`) as a template
+2. **Define the table** in `packages/backend/src/database/schema.ts`
+3. **Add Zod schemas** in `packages/shared/src/schemas/`
+4. **Add types** in `packages/shared/src/types/`
+5. **Implement** `models.ts`, `errors.ts`, `repository.ts`, `service.ts`, `index.ts`
+6. **Add Express routes** in `packages/backend/src/routes/`
+7. **Write tests** in the feature's `tests/` subfolder
+
+## Environment Variables
+
+The root `.env` file contains all env vars. Backend reads it directly (runs from root). Frontend uses a symlink (`packages/frontend/.env` → `../../.env`).
+
+**Important**: Backend vars use `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`. Frontend vars use the `NEXT_PUBLIC_` prefix.
+
+**Next.js env access rule**: Always use string-literal bracket notation for client/Edge env access:
+```typescript
+// Correct — Next.js can inline this at build time
+const url = process.env["NEXT_PUBLIC_SUPABASE_URL"]!;
+
+// Wrong — dynamic access won't be inlined
+const url = process.env[key]; // undefined in client bundle
 ```
 
 ## Supabase + Drizzle Setup
 
 **Key files:**
-- `src/core/config/env.ts` - Validated environment variables
-- `src/core/database/schema.ts` - Drizzle schema definitions
-- `src/core/database/client.ts` - Database client
-- `src/core/supabase/server.ts` - Server-side Supabase client
-- `src/core/supabase/client.ts` - Browser-side Supabase client
-- `src/core/supabase/proxy.ts` - Session refresh logic
-- `src/proxy.ts` - Next.js 16 proxy entry point (replaces middleware.ts)
-- `src/features/auth/` - Shared auth actions and hooks
+- `packages/backend/src/config/env.ts` - Validated environment variables
+- `packages/backend/src/database/schema.ts` - Drizzle schema definitions
+- `packages/backend/src/database/client.ts` - Database client
+- `packages/backend/src/supabase/server.ts` - Server-side Supabase client
+- `packages/frontend/src/core/supabase/server.ts` - Server-side Supabase client (Next.js)
+- `packages/frontend/src/core/supabase/client.ts` - Browser-side Supabase client
+- `packages/frontend/src/core/supabase/proxy.ts` - Session refresh logic (Edge Runtime)
+- `packages/frontend/src/proxy.ts` - Next.js 16 proxy entry point
+- `packages/frontend/src/features/auth/` - Auth actions and hooks
 
-**Important patterns (learned from setup):**
+**Important patterns:**
 
-1. **Key naming transition**: Supabase is migrating from `ANON_KEY` to `PUBLISHABLE_KEY`. Our setup supports both - use whichever your project provides.
+1. **Key naming transition**: Supabase is migrating from `ANON_KEY` to `PUBLISHABLE_KEY`. Our setup supports both.
 
-2. **Server client cookies**: The `setAll` must be wrapped in try/catch because it can be called from Server Components where cookies cannot be set:
-   ```typescript
-   setAll(cookiesToSet) {
-     try {
-       // set cookies
-     } catch {
-       // Ignore: called from Server Component
-     }
-   }
-   ```
+2. **Server client cookies**: The `setAll` must be wrapped in try/catch because it can be called from Server Components where cookies cannot be set.
 
-3. **Middleware response pattern**: Must create new response inside `setAll` callback:
-   ```typescript
-   setAll(cookiesToSet) {
-     supabaseResponse = NextResponse.next({ request });
-     // then set cookies on supabaseResponse
-   }
-   ```
+3. **Connection pooler for serverless**: Use port 6543 (transaction pooler) with `prepare: false`.
 
-4. **Connection pooler for serverless**: Use port 6543 (transaction pooler) with `prepare: false`:
-   ```typescript
-   postgres(url, { prepare: false })
-   ```
+4. **Server Actions with `useActionState`** (React 19): Actions must take `(prevState, formData)`.
 
-5. **Server Actions with `useActionState`** (React 19): Actions must take `(prevState, formData)`:
-   ```typescript
-   // Wrong - will cause type errors
-   async function login(formData: FormData) { ... }
+5. **Auth route groups**: `(auth)` and `(dashboard)` layouts handle redirects. Check auth in layout, not each page.
 
-   // Correct
-   async function login(_prevState: LoginState, formData: FormData) { ... }
-   ```
+6. **Users table trigger**: Run SQL in Supabase dashboard to sync `auth.users` → `public.users`. See `packages/backend/src/database/schema.ts` for the trigger code.
 
-6. **Auth route groups**: `(auth)` and `(dashboard)` layouts handle redirects. Check auth in layout, not each page.
+## Frontend API Client
 
-7. **Users table trigger**: Run SQL in Supabase dashboard to sync `auth.users` → `public.users`. See `src/core/database/schema.ts` for the trigger code.
+The frontend communicates with the backend via:
+- **REST**: `apiFetch()` from `packages/frontend/src/lib/api-client.ts` (adds Bearer token, routes to `NEXT_PUBLIC_BACKEND_URL`)
+- **WebSocket**: Socket.IO client from `packages/frontend/src/lib/socket.ts` (real-time chat)
 
 ## shadcn/ui Components
 
-Components are copied into `src/components/ui/` - you can read and modify them directly.
-
-**Add new components:**
+Components are in `packages/frontend/src/components/ui/`. Add new ones with:
 ```bash
-bunx shadcn@canary add <component-name>
+cd packages/frontend && bunx shadcn@canary add <component-name>
 ```
 
-**Examples:**
-```bash
-bunx shadcn@canary add button
-bunx shadcn@canary add dialog alert-dialog
-```
-
-**After adding components, run `bun run lint:fix`** to format them to match our style.
+**After adding components, run `bun run lint:fix`** to format them.
 
 **Component locations:**
-- `src/components/ui/` - shadcn primitives (button, dialog, etc.)
-- `src/components/` - app-level components (theme-provider, theme-toggle)
-- `src/shared/components/` - custom shared components
-- `src/lib/utils.ts` - `cn()` utility for merging Tailwind classes
+- `packages/frontend/src/components/ui/` - shadcn primitives (button, dialog, etc.)
+- `packages/frontend/src/components/` - app-level components (chat UI, theme)
+- `packages/frontend/src/lib/utils.ts` - `cn()` utility for merging Tailwind classes
 
 ## Code Style
 
@@ -263,7 +300,7 @@ bunx shadcn@canary add dialog alert-dialog
 - Use named exports (default exports only for Next.js pages/layouts/config files)
 - Use `type` imports/exports for type-only references
 - Use `const` over `let` when possible
-- Path aliases: `@/*`, `@/core/*`, `@/features/*`, `@/shared/*` map to `./src/*`
+- Frontend path aliases: `@/*` maps to `packages/frontend/src/*`
 
 ## Rules That Will Fail Checks
 
@@ -282,7 +319,7 @@ bunx shadcn@canary add dialog alert-dialog
 - Using `.forEach()` (use `for...of` loop instead)
 - Overly complex functions
 
-## Logging
+## Logging (Backend)
 
 Use `getLogger("domain.component")` and the `action_state` message pattern:
 ```typescript
