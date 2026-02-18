@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "bun run dev:backend & bun run dev:frontend",
-    "dev:backend": "cd packages/backend && bun run dev",
+    "dev:backend": "bun --watch packages/backend/src/index.ts",
     "dev:frontend": "cd packages/frontend && bun run dev",
     "build": "bun run build:shared && bun run build:backend && bun run build:frontend",
     "build:shared": "cd packages/shared && npx tsc",
