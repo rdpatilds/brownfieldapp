@@ -1,0 +1,32 @@
+{
+  "name": "@chatapp/backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@chatapp/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.89.0",
+    "chargebee": "^3.21.0",
+    "cors": "^2.8.5",
+    "drizzle-orm": "^0.45.1",
+    "express": "^5.1.0",
+    "multer": "^1.4.5-lts.2",
+    "pino": "^10.1.0",
+    "pino-pretty": "^13.1.3",
+    "postgres": "^3.4.7",
+    "socket.io": "^4.8.1",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^1.4.12",
+    "@types/bun": "^1.3.5",
+    "typescript": "^5"
+  }
+}
