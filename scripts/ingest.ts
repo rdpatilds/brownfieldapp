@@ -2,7 +2,7 @@
  * Document Ingestion Script
  *
  * Ingests .md/.txt files into the documents/chunks tables for RAG.
- * Uses raw SQL since these tables are not in the Drizzle schema.
+ * Uses the shared documents feature for chunking, title extraction, and DB operations.
  *
  * Usage:
  *   bun run ingest -- --dir documents/
@@ -12,9 +12,11 @@
  */
 
 import { readdir, stat } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { sql } from "drizzle-orm";
 import { db } from "@/core/database/client";
+import { chunkText, extractTitle } from "@/features/documents";
+import * as documentRepository from "@/features/documents/repository";
 import { EMBEDDING_MODEL } from "@/features/rag/constants";
 import { generateEmbedding } from "@/features/rag/service";
 
@@ -72,57 +74,6 @@ function parseArgs(): CliArgs {
   return parsed;
 }
 
-// --- Chunking ---
-
-interface Chunk {
-  content: string;
-  index: number;
-}
-
-function chunkText(text: string, chunkSize: number, chunkOverlap: number): Chunk[] {
-  const normalized = text.replace(/\r\n/g, "\n");
-  const paragraphs = normalized.split(/\n\n+/);
-  const chunks: Chunk[] = [];
-  let current = "";
-  let chunkIndex = 0;
-
-  for (const paragraph of paragraphs) {
-    const trimmed = paragraph.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const candidate = current ? `${current}\n\n${trimmed}` : trimmed;
-
-    if (candidate.length > chunkSize && current) {
-      chunks.push({ content: current, index: chunkIndex++ });
-
-      // Apply overlap: carry trailing characters from previous chunk
-      const overlapText = current.slice(-chunkOverlap);
-      current = overlapText ? `${overlapText}\n\n${trimmed}` : trimmed;
-    } else {
-      current = candidate;
-    }
-  }
-
-  // Push remaining content
-  if (current.trim()) {
-    chunks.push({ content: current, index: chunkIndex });
-  }
-
-  return chunks;
-}
-
-// --- Title Extraction ---
-
-function extractTitle(content: string, filePath: string): string {
-  const match = content.match(/^#\s+(.+)$/m);
-  if (match?.[1]) {
-    return match[1].trim();
-  }
-  return basename(filePath, extname(filePath));
-}
-
 // --- File Discovery ---
 
 const SUPPORTED_EXTENSIONS = new Set([".md", ".txt"]);
@@ -143,40 +94,13 @@ async function discoverFiles(dirPath: string): Promise<string[]> {
   return files.sort();
 }
 
-// --- Database Operations (raw SQL) ---
+// --- Database Operations (raw SQL, script-specific) ---
 
 async function cleanTables(): Promise<void> {
   console.log("Cleaning existing data...");
   await db.execute(sql`DELETE FROM chunks`);
   await db.execute(sql`DELETE FROM documents`);
   console.log("Tables cleaned.");
-}
-
-async function insertDocument(title: string, source: string, content: string): Promise<string> {
-  const result = await db.execute(
-    sql`INSERT INTO documents (title, source, content, metadata)
-        VALUES (${title}, ${source}, ${content}, '{}'::jsonb)
-        RETURNING id`,
-  );
-  const row = result[0] as { id: string } | undefined;
-  if (!row) {
-    throw new Error("Failed to insert document — no ID returned");
-  }
-  return row.id;
-}
-
-async function insertChunk(
-  documentId: string,
-  content: string,
-  embedding: number[],
-  chunkIndex: number,
-  tokenCount: number,
-): Promise<void> {
-  const embeddingStr = `[${embedding.join(",")}]`;
-  await db.execute(
-    sql`INSERT INTO chunks (document_id, content, embedding, chunk_index, metadata, token_count)
-        VALUES (${documentId}, ${content}, ${embeddingStr}::vector, ${chunkIndex}, '{}'::jsonb, ${tokenCount})`,
-  );
 }
 
 // --- Ingestion Pipeline ---
@@ -200,7 +124,7 @@ async function ingestFile(
   console.log(`  Title: ${title}`);
 
   // Insert document
-  const documentId = await insertDocument(title, source, content);
+  const documentId = await documentRepository.insertDocument(title, source, content);
   console.log(`  Document ID: ${documentId}`);
 
   // Chunk content
@@ -211,7 +135,13 @@ async function ingestFile(
   for (const chunk of chunks) {
     const embedding = await generateEmbedding(chunk.content);
     const tokenCount = Math.ceil(chunk.content.length / 4); // rough estimate
-    await insertChunk(documentId, chunk.content, embedding, chunk.index, tokenCount);
+    await documentRepository.insertChunk(
+      documentId,
+      chunk.content,
+      embedding,
+      chunk.index,
+      tokenCount,
+    );
     process.stdout.write(`  Embedded chunk ${chunk.index + 1}/${chunks.length}\r`);
   }
   console.log(`  Embedded ${chunks.length} chunks ✓`);
