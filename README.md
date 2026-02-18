@@ -110,6 +110,57 @@ src/features/chat/
 └── tests/         # Feature tests
 ```
 
+## RAG Ingestion
+
+The app supports Retrieval-Augmented Generation (RAG) using documents ingested into the database. The ingestion script reads `.md` or `.txt` files, splits them into chunks, generates embeddings, and stores everything in the `documents` and `chunks` tables.
+
+### Usage
+
+```bash
+# Ingest all files from a directory
+bun run ingest -- --dir documents/
+
+# Ingest a single file
+bun run ingest -- --file path/to/doc.md
+
+# Clean existing data first, then ingest fresh
+bun run ingest -- --dir documents/ --clean
+
+# Custom chunk size and overlap
+bun run ingest -- --dir documents/ --chunk-size 1000 --chunk-overlap 200
+```
+
+### Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--dir <path>` | — | Directory to scan recursively for `.md`/`.txt` files |
+| `--file <path>` | — | Single file to ingest |
+| `--clean` | `false` | Delete all existing documents and chunks before ingesting |
+| `--chunk-size <n>` | `1000` | Maximum characters per chunk |
+| `--chunk-overlap <n>` | `200` | Character overlap between consecutive chunks |
+
+### How it works
+
+1. Discovers all `.md` and `.txt` files in the target directory
+2. Extracts the title from the first `# heading` (falls back to filename)
+3. Inserts a row into the `documents` table
+4. Splits content into chunks at paragraph boundaries respecting `--chunk-size`
+5. Generates an embedding for each chunk via OpenRouter (`text-embedding-3-small`)
+6. Stores each chunk with its embedding vector in the `chunks` table
+
+### Environment variables
+
+These are configured in `.env` (all have defaults):
+
+```bash
+RAG_EMBEDDING_MODEL=openai/text-embedding-3-small
+RAG_SIMILARITY_THRESHOLD=0.5
+RAG_MAX_CHUNKS=5
+RAG_MATCH_COUNT=10
+RAG_ENABLED=true
+```
+
 ## License
 
 MIT
