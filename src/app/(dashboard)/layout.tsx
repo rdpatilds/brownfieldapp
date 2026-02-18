@@ -38,6 +38,9 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
             <a href="/dashboard/projects" className="text-muted-foreground hover:text-foreground">
               Projects
             </a>
+            <a href="/dashboard/documents" className="text-muted-foreground hover:text-foreground">
+              Documents
+            </a>
           </nav>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
