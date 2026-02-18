@@ -49,3 +49,6 @@ packages/*/.env
 next-env.d.ts
 
 .agents/reports
+.claude/settings.local.json
+excalidraw.log
+screenshots/
