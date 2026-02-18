@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { MAX_CONTEXT_MESSAGES } from "../constants";
+import { MAX_CONTEXT_MESSAGES, RAG_SYSTEM_PROMPT_TEMPLATE } from "../constants";
 import type { Message } from "../models";
 import { buildMessages } from "../stream";
 
@@ -59,5 +59,36 @@ describe("buildMessages", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.role).toBe("system");
+  });
+
+  it("uses RAG system prompt when ragContext is provided", () => {
+    const history: Message[] = [createMockMessage("user", "Hello")];
+    const ragContext = "[1] Doc (source)\nSome content";
+
+    const result = buildMessages(history, ragContext);
+
+    const expected = RAG_SYSTEM_PROMPT_TEMPLATE.replace("{context}", ragContext);
+    expect(result[0]?.content).toBe(expected);
+  });
+
+  it("RAG system prompt includes citation instructions", () => {
+    const history: Message[] = [createMockMessage("user", "Hello")];
+    const ragContext = "[1] Test Doc (source.md)\nContent";
+
+    const result = buildMessages(history, ragContext);
+    const systemContent = result[0]?.content ?? "";
+
+    expect(systemContent).toContain("Cite your sources using bracketed numbers like [1], [2]");
+    expect(systemContent).toContain("Place citations inline");
+  });
+
+  it("uses default system prompt when ragContext is undefined", () => {
+    const history: Message[] = [createMockMessage("user", "Hello")];
+
+    const result = buildMessages(history, undefined);
+
+    expect(result[0]?.content).toBe(
+      "You are a helpful AI assistant. Be concise, accurate, and friendly.",
+    );
   });
 });

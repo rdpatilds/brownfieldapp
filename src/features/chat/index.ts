@@ -1,7 +1,7 @@
 // Types
 
 // Constants
-export { MAX_CONTEXT_MESSAGES, SYSTEM_PROMPT } from "./constants";
+export { MAX_CONTEXT_MESSAGES, RAG_SYSTEM_PROMPT_TEMPLATE, SYSTEM_PROMPT } from "./constants";
 // Errors
 export type { ChatErrorCode } from "./errors";
 export {

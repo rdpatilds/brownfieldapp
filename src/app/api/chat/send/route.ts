@@ -12,6 +12,7 @@ import {
   SendMessageSchema,
   streamChatCompletion,
 } from "@/features/chat";
+import { formatContextForPrompt, retrieveContext } from "@/features/rag";
 
 const logger = getLogger("api.chat.send");
 
@@ -52,13 +53,48 @@ export async function POST(request: NextRequest) {
     // Get history for context
     const history = await getMessages(conversationId);
 
+    // Retrieve RAG context (non-fatal)
+    let ragContext: string | undefined;
+    let ragSources: Array<{ index: number; title: string; source: string }> = [];
+    try {
+      const retrieval = await retrieveContext(content);
+      if (retrieval.chunks.length > 0) {
+        ragContext = formatContextForPrompt(retrieval.chunks);
+        ragSources = retrieval.chunks.map((chunk, i) => ({
+          index: i + 1,
+          title: chunk.documentTitle,
+          source: chunk.documentSource,
+        }));
+        logger.info(
+          { conversationId, chunkCount: retrieval.chunks.length },
+          "chat.rag_context_retrieved",
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown RAG error";
+      logger.warn({ conversationId, error: message }, "chat.rag_retrieval_failed");
+    }
+
     // Stream completion
-    const { stream, fullResponse } = await streamChatCompletion(history);
+    const { stream, fullResponse } = await streamChatCompletion(
+      history,
+      ragContext ? { ragContext } : undefined,
+    );
 
     // Wrap the stream to save assistant message after completion
     const reader = stream.getReader();
+    let sentSources = false;
     const wrappedStream = new ReadableStream({
       async pull(controller) {
+        // Send RAG sources as the first event before streaming content
+        if (!sentSources && ragSources.length > 0) {
+          sentSources = true;
+          const encoder = new TextEncoder();
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "sources", sources: ragSources })}\n\n`),
+          );
+        }
+
         const { done, value } = await reader.read();
         if (!done) {
           controller.enqueue(value);
