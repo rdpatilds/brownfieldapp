@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apiFetch } from "@/lib/api-client";
 
 export function DocumentList() {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -24,7 +25,7 @@ export function DocumentList() {
 
   const fetchDocuments = useCallback(async () => {
     try {
-      const response = await fetch("/api/documents");
+      const response = await apiFetch("/api/documents");
       if (response.ok) {
         const data = (await response.json()) as { documents: DocumentSummary[] };
         setDocuments(data.documents);
@@ -50,7 +51,7 @@ export function DocumentList() {
 
   const handleDelete = async (id: string) => {
     try {
-      const response = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+      const response = await apiFetch(`/api/documents/${id}`, { method: "DELETE" });
       if (response.ok) {
         setDocuments((prev) => prev.filter((doc) => doc.id !== id));
         toast.success("Document deleted");
