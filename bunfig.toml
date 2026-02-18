@@ -1,4 +1,0 @@
-[test]
-preload = ["./happydom.ts", "./testing-library.ts"]
-coverage = true
-coverageThreshold = { line = 80, function = 80 }
