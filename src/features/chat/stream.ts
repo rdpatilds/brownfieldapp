@@ -1,16 +1,22 @@
 import { env } from "@/core/config/env";
 import { getLogger } from "@/core/logging";
 
-import { MAX_CONTEXT_MESSAGES, SYSTEM_PROMPT } from "./constants";
+import { MAX_CONTEXT_MESSAGES, RAG_SYSTEM_PROMPT_TEMPLATE, SYSTEM_PROMPT } from "./constants";
 import { OpenRouterError, StreamError } from "./errors";
 import type { Message } from "./models";
 
 const logger = getLogger("chat.stream");
 
-export function buildMessages(history: Message[]): Array<{ role: string; content: string }> {
+export function buildMessages(
+  history: Message[],
+  ragContext?: string,
+): Array<{ role: string; content: string }> {
   const limitedHistory = history.slice(-MAX_CONTEXT_MESSAGES);
+  const systemPrompt = ragContext
+    ? RAG_SYSTEM_PROMPT_TEMPLATE.replace("{context}", ragContext)
+    : SYSTEM_PROMPT;
   return [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     ...limitedHistory.map((m) => ({ role: m.role, content: m.content })),
   ];
 }
@@ -49,9 +55,12 @@ function parseSSELine(line: string): ParsedSSELine {
 
 export async function streamChatCompletion(
   history: Message[],
-  signal?: AbortSignal,
+  options?: { signal?: AbortSignal; ragContext?: string },
 ): Promise<{ stream: ReadableStream; fullResponse: Promise<string> }> {
-  logger.info({ messageCount: history.length }, "stream.chat_started");
+  logger.info(
+    { messageCount: history.length, hasRagContext: !!options?.ragContext },
+    "stream.chat_started",
+  );
 
   let response: Response;
   try {
@@ -63,10 +72,10 @@ export async function streamChatCompletion(
       },
       body: JSON.stringify({
         model: env.OPENROUTER_MODEL,
-        messages: buildMessages(history),
+        messages: buildMessages(history, options?.ragContext),
         stream: true,
       }),
-      signal: signal ?? null,
+      signal: options?.signal ?? null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown fetch error";

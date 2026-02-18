@@ -10,6 +10,12 @@ interface UseChatOptions {
   onBalanceUpdate?: (balance: number) => void;
 }
 
+export interface ChatSource {
+  index: number;
+  title: string;
+  source: string;
+}
+
 interface ChatMessage {
   id: string;
   conversationId: string;
@@ -17,15 +23,23 @@ interface ChatMessage {
   content: string;
   createdAt: string;
   updatedAt: string;
+  sources?: ChatSource[] | undefined;
+}
+
+interface SSEStreamResult {
+  content: string;
+  sources: ChatSource[];
 }
 
 async function readSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onChunk: (accumulated: string) => void,
+  onSources?: (sources: ChatSource[]) => void,
   onRefund?: () => void,
-): Promise<string> {
+): Promise<SSEStreamResult> {
   const decoder = new TextDecoder();
   let accumulated = "";
+  let sources: ChatSource[] = [];
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -42,14 +56,20 @@ async function readSSEStream(
       }
       const data = line.slice(6);
       if (data === "[DONE]") {
-        return accumulated;
+        return { content: accumulated, sources };
       }
       try {
         const parsed = JSON.parse(data) as {
           content?: string;
           type?: string;
           message?: string;
+          sources?: ChatSource[];
         };
+        if (parsed.type === "sources" && parsed.sources) {
+          sources = parsed.sources;
+          onSources?.(sources);
+          continue;
+        }
         if (parsed.type === "error") {
           toast.error(parsed.message ?? "Response may not have been saved");
           continue;
@@ -72,7 +92,7 @@ async function readSSEStream(
     }
   }
 
-  return accumulated;
+  return { content: accumulated, sources };
 }
 
 function makeTempMessage(conversationId: string, role: string, content: string): ChatMessage {
@@ -98,6 +118,7 @@ export function useChat(options: UseChatOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [streamingSources, setStreamingSources] = useState<ChatSource[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const skipNextFetchRef = useRef(false);
 
@@ -138,6 +159,7 @@ export function useChat(options: UseChatOptions = {}) {
 
       setIsStreaming(true);
       setStreamingContent("");
+      setStreamingSources([]);
 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
@@ -190,18 +212,22 @@ export function useChat(options: UseChatOptions = {}) {
           throw new Error("No reader");
         }
 
-        const accumulated = await readSSEStream(
+        const result = await readSSEStream(
           reader,
           setStreamingContent,
+          setStreamingSources,
           options.onTokenRefunded,
         );
 
-        if (accumulated) {
-          const assistantMessage = makeTempMessage(
-            conversationId ?? activeConversationId ?? "",
-            "assistant",
-            accumulated,
-          );
+        if (result.content) {
+          const assistantMessage: ChatMessage = {
+            ...makeTempMessage(
+              conversationId ?? activeConversationId ?? "",
+              "assistant",
+              result.content,
+            ),
+            sources: result.sources.length > 0 ? result.sources : undefined,
+          };
           setMessages((prev) => [...prev, assistantMessage]);
         }
       } catch (error) {
@@ -214,6 +240,7 @@ export function useChat(options: UseChatOptions = {}) {
         abortControllerRef.current = null;
         setIsStreaming(false);
         setStreamingContent("");
+        setStreamingSources([]);
       }
     },
     [activeConversationId, isStreaming, addItem, updateItem, options],
@@ -273,6 +300,7 @@ export function useChat(options: UseChatOptions = {}) {
     isStreaming,
     isLoadingMessages,
     streamingContent,
+    streamingSources,
     sendMessage,
     selectConversation,
     createNewChat,

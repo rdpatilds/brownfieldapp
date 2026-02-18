@@ -44,6 +44,13 @@ export const env = {
   OPENROUTER_API_KEY: getRequiredEnv("OPENROUTER_API_KEY"),
   OPENROUTER_MODEL: getOptionalEnv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5"),
 
+  // RAG config (optional)
+  RAG_EMBEDDING_MODEL: getOptionalEnv("RAG_EMBEDDING_MODEL", "openai/text-embedding-3-small"),
+  RAG_SIMILARITY_THRESHOLD: getOptionalEnv("RAG_SIMILARITY_THRESHOLD", "0.7"),
+  RAG_MAX_CHUNKS: getOptionalEnv("RAG_MAX_CHUNKS", "5"),
+  RAG_MATCH_COUNT: getOptionalEnv("RAG_MATCH_COUNT", "10"),
+  RAG_ENABLED: getOptionalEnv("RAG_ENABLED", "true"),
+
   // Chargebee config (required)
   CHARGEBEE_SITE: getRequiredEnv("CHARGEBEE_SITE"),
   CHARGEBEE_API_KEY: getRequiredEnv("CHARGEBEE_API_KEY"),
