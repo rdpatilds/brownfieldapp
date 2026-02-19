@@ -1,6 +1,6 @@
 # AI Chat
 
-A real-time AI chat application with RAG (Retrieval-Augmented Generation) support, built as a Bun workspaces monorepo. Features streaming responses via WebSocket, conversation management, document ingestion with vector search, markdown rendering with syntax highlighting, and a polished dark theme.
+A real-time AI chat application with RAG (Retrieval-Augmented Generation) support. Features streaming responses via WebSocket, conversation management, document ingestion with vector search, markdown rendering with syntax highlighting, token-based billing, and a polished dark theme.
 
 ## Features
 
@@ -14,188 +14,251 @@ A real-time AI chat application with RAG (Retrieval-Augmented Generation) suppor
 - **Persistent conversations** stored in Supabase Postgres via Drizzle ORM
 - **Keyboard shortcuts** — Enter to send, Shift+Enter for new line
 
-## Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui |
-| Backend | Express 5, Socket.IO 4, Pino (structured logging) |
-| Shared | TypeScript types, Zod v4 schemas, constants |
+| Backend | Express 5, Socket.IO 4, Pino (structured logging), Node.js (tsx) |
 | Database | Supabase Postgres + Drizzle ORM |
 | Auth | Supabase Auth |
 | AI | OpenRouter (configurable model) |
 | Embeddings | OpenRouter (`text-embedding-3-small`) |
 | Billing | ChargeBee |
-| Runtime | Bun |
+| Validation | Zod v4 |
+| Backend Runtime | Node.js + tsx |
+| Frontend Runtime | Bun |
+| Backend Package Manager | pnpm |
+| Frontend Package Manager | Bun |
 | Linting | Biome |
-| Testing | Bun test + React Testing Library |
+| Backend Testing | Vitest |
+| Frontend Testing | Bun test + React Testing Library |
+| E2E Testing | Playwright |
 
-## Monorepo Structure
+## Project Structure
+
+This repo contains two standalone projects sharing a single git repository. There is **no shared workspace** — each project is fully independent.
 
 ```
 chatapp/
-├── packages/
-│   ├── shared/       # @chatapp/shared — Types, Zod schemas, constants, socket events
-│   ├── backend/      # @chatapp/backend — Express 5 + Socket.IO 4 server
-│   └── frontend/     # @chatapp/frontend — Next.js 16 web app
-├── documents/        # Sample documents for RAG ingestion
-├── package.json      # Root workspace config
-├── tsconfig.base.json# Shared TypeScript strict settings
-└── CLAUDE.md         # AI coding assistant guidance
+├── backend/              # Node.js + pnpm — Express 5 API + Socket.IO server
+│   ├── src/
+│   │   ├── index.ts      # Server entry point
+│   │   ├── config/       # Environment validation
+│   │   ├── database/     # Drizzle client + schema
+│   │   ├── middleware/    # Auth, CORS, error handler
+│   │   ├── routes/       # REST endpoints
+│   │   ├── socket/       # WebSocket handlers
+│   │   ├── logging/      # Pino structured logging
+│   │   ├── features/     # Vertical slices (billing, chat, documents, projects, rag)
+│   │   └── shared/       # Types, Zod schemas, constants (source of truth)
+│   ├── drizzle/          # Database migrations
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vitest.config.ts
+│   └── biome.json
+├── frontend/             # Bun — Next.js 16 web app
+│   ├── src/
+│   │   ├── app/          # Next.js App Router pages and layouts
+│   │   ├── components/   # Chat UI, theme, shadcn/ui primitives
+│   │   ├── contracts/    # Duplicated types/constants from backend (~100 lines)
+│   │   ├── core/         # Supabase clients, config
+│   │   ├── features/     # Auth actions and hooks
+│   │   ├── hooks/        # useChat, useTokens, useDocumentUpload
+│   │   └── lib/          # API client, Socket.IO client, utilities
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── biome.json
+├── e2e/                  # Playwright E2E tests (28 tests)
+│   ├── tests/
+│   ├── playwright.config.ts
+│   └── package.json
+├── .env                  # Shared environment variables
+├── .gitignore
+├── CLAUDE.md             # AI coding assistant guidance
+└── README.md
 ```
 
 ## Quick Start
 
+### 1. Install dependencies
+
 ```bash
-# Install dependencies
-bun install
+# Backend
+cd backend && pnpm install
 
-# Set up environment
-cp .env.sample .env
-# Edit .env with your credentials (see Environment Variables below)
+# Frontend
+cd frontend && bun install
 
-# Create the frontend .env symlink
-ln -sf ../../.env packages/frontend/.env
-
-# Run database migrations
-bun run db:migrate
-
-# Start development servers (backend + frontend)
-bun run dev
+# E2E (optional)
+cd e2e && npm install && npx playwright install chromium
 ```
 
-The backend runs on `http://localhost:4000` and the frontend on `http://localhost:3000`.
+### 2. Configure environment
+
+```bash
+# Copy sample env files and fill in your credentials
+cp backend/.env.sample .env
+# Edit .env with your Supabase, OpenRouter, and ChargeBee credentials
+```
+
+The `.env` file lives at the repo root. Both projects read it via symlinks:
+- `backend/.env` → `../.env`
+- `frontend/.env` → `../.env`
+
+### 3. Run database migrations
+
+```bash
+cd backend && pnpm run db:migrate
+```
+
+### 4. Start development servers
+
+```bash
+# Terminal 1: Backend (http://localhost:4000)
+cd backend && pnpm dev
+
+# Terminal 2: Frontend (http://localhost:3000)
+cd frontend && bun run dev
+```
 
 ## Environment Variables
 
-```bash
-# OpenRouter (required for AI responses)
-OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_MODEL=anthropic/claude-haiku-4.5
+See `backend/.env.sample` and `frontend/.env.sample` for all required variables.
 
-# Supabase (both prefixed and non-prefixed needed)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```bash
+# Supabase (required)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 # Database (use transaction pooler port 6543)
 DATABASE_URL=postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
 
-# Backend URL (frontend needs this to call the API)
+# OpenRouter (required for AI responses)
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=anthropic/claude-haiku-4.5
+
+# Backend URL (frontend needs this)
 NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
+
+# ChargeBee (required for billing)
+CHARGEBEE_SITE=your-site
+CHARGEBEE_API_KEY=your-api-key
+CHARGEBEE_WEBHOOK_USERNAME=your-username
+CHARGEBEE_WEBHOOK_PASSWORD=your-password
 
 # RAG settings
 RAG_EMBEDDING_MODEL=openai/text-embedding-3-small
-RAG_SIMILARITY_THRESHOLD=0.5
+RAG_SIMILARITY_THRESHOLD=0.7
 RAG_MAX_CHUNKS=5
 RAG_MATCH_COUNT=10
 RAG_ENABLED=true
-
-# ChargeBee (optional, for billing)
-CHARGEBEE_SITE=your-site
-CHARGEBEE_API_KEY=your-api-key
-CHARGEBEE_WEBHOOK_SECRET=your-webhook-secret
 ```
 
 ## Commands
 
-All commands run from the monorepo root:
+### Backend (`cd backend`)
 
 ```bash
-# Development
-bun run dev              # Start backend + frontend in parallel
-bun run dev:backend      # Backend only (bun --watch, port 4000)
-bun run dev:frontend     # Frontend only (next dev, port 3000)
+pnpm dev              # Start dev server (tsx watch, port 4000)
+pnpm start            # Start production server
+pnpm run build        # Type check (tsc --noEmit)
+pnpm test             # Run tests (Vitest, 163 tests)
+pnpm run lint         # Lint + format check (Biome)
+pnpm run lint:fix     # Auto-fix lint issues
+pnpm run db:generate  # Generate migrations
+pnpm run db:migrate   # Run migrations
+pnpm run db:push      # Push schema directly (dev only)
+pnpm run db:studio    # Open Drizzle Studio GUI
+```
 
-# Build
-bun run build            # Full production build (shared → backend → frontend)
+### Frontend (`cd frontend`)
 
-# Quality
-bun run lint             # Check lint/format errors (Biome)
-bun run lint:fix         # Auto-fix lint/format issues
+```bash
+bun run dev           # Start dev server (next dev, port 3000)
+bun run build         # Next.js production build
+bun run start         # Start production server
+bun test              # Run tests (Bun test, 52 tests)
+bun run lint          # Lint + format check (Biome)
+bun run lint:fix      # Auto-fix lint issues
+```
 
-# Testing
-bun run test             # Run all tests (260 total)
-bun run test:shared      # Shared package tests (90)
-bun run test:backend     # Backend tests (118)
-bun run test:frontend    # Frontend tests (52)
+### E2E Tests (`cd e2e`)
 
-# Database
-bun run db:generate      # Generate migrations from schema changes
-bun run db:migrate       # Run pending migrations
-bun run db:push          # Push schema directly (dev only)
-bun run db:studio        # Open Drizzle Studio GUI
+```bash
+npx playwright test --headed    # Run all 28 tests (browser visible)
+npx playwright test --ui        # Playwright UI mode
+npx playwright test             # Headless mode
 ```
 
 ## Architecture
 
-### @chatapp/shared (`packages/shared/`)
+### Backend — Vertical Slice Architecture
 
-Shared types, Zod validation schemas, constants, and Socket.IO event definitions used by both backend and frontend.
+Features in `backend/src/features/` are self-contained vertical slices. Each slice owns its data model, database operations, business logic, and errors.
 
 ```
-packages/shared/src/
+backend/src/features/{feature}/
+├── models.ts      # Drizzle types
+├── repository.ts  # Database queries (no business logic)
+├── service.ts     # Business logic (orchestrates repo + validation)
+├── errors.ts      # Custom error classes with HTTP semantics
+├── index.ts       # Public API (controls imports)
+└── tests/         # Feature tests
+```
+
+**Features**: `billing`, `chat`, `documents`, `projects`, `rag`
+
+### Backend — Shared Code
+
+`backend/src/shared/` is the **source of truth** for all shared types, Zod schemas, constants, and socket event definitions.
+
+```
+backend/src/shared/
 ├── types/            # TypeScript interfaces (billing, chat, documents, projects, rag)
 ├── schemas/          # Zod validation schemas
 ├── constants/        # Shared constants (billing, chat, rag)
 └── socket-events.ts  # Socket.IO event type definitions
 ```
 
-### @chatapp/backend (`packages/backend/`)
+### Frontend — Contracts Layer
 
-Express 5 REST API + Socket.IO 4 WebSocket server. Features are organized as vertical slices.
-
-```
-packages/backend/src/
-├── index.ts          # Server entry point
-├── config/           # Environment validation
-├── database/         # Drizzle client + schema
-├── middleware/       # Auth, CORS, error handler
-├── routes/           # REST endpoints (billing, chat, documents, projects, webhooks, health)
-├── socket/           # WebSocket handlers (auth, chat streaming)
-├── logging/          # Pino structured logging
-└── features/         # Vertical slices
-    ├── billing/      # Token billing + ChargeBee
-    ├── chat/         # Conversations, messages, AI streaming
-    ├── documents/    # Document upload + management
-    ├── projects/     # CRUD projects
-    └── rag/          # Embedding generation + vector search
-```
-
-Each feature follows the **vertical slice pattern**:
+`frontend/src/contracts/` contains a minimal duplication (~100 lines) of types and constants the frontend needs. This is intentional — the frontend only references a small subset of the backend's shared code.
 
 ```
-packages/backend/src/features/{feature}/
-├── models.ts      # Drizzle types
-├── repository.ts  # Database queries
-├── service.ts     # Business logic
-├── errors.ts      # Custom error classes
-├── index.ts       # Public API
-└── tests/         # Feature tests
+frontend/src/contracts/
+├── types.ts          # DocumentSummary, ChatSource, UploadProgressEvent
+├── socket-events.ts  # CLIENT_EVENTS, SERVER_EVENTS + payload interfaces
+├── constants.ts      # TOKEN_PACKS, LOW_BALANCE_THRESHOLD, MAX_FILE_SIZE
+└── index.ts          # Barrel export
 ```
 
-### @chatapp/frontend (`packages/frontend/`)
-
-Next.js 16 app with App Router, Supabase auth, and real-time chat UI.
+### Frontend — Page Structure
 
 ```
-packages/frontend/src/
-├── app/              # Next.js pages and layouts
-│   ├── (auth)/       # Login & register
-│   └── (dashboard)/  # Chat, documents, billing
-├── components/       # UI components
-│   ├── chat/         # Chat layout, input, messages, sidebar
-│   └── ui/           # shadcn/ui primitives
-├── core/             # Supabase clients, config
-├── features/auth/    # Auth actions & hooks
-├── hooks/            # useChat, useTokens, useDocumentUpload
-└── lib/              # API client, Socket.IO client, utilities
+frontend/src/app/
+├── page.tsx              # Chat UI (root page)
+├── layout.tsx            # Root layout (ThemeProvider, Toaster)
+├── global-error.tsx      # Error boundary
+├── (auth)/
+│   ├── layout.tsx        # Auth layout (redirect if logged in)
+│   ├── login/page.tsx    # Login form
+│   └── register/page.tsx # Register form
+└── (dashboard)/
+    ├── layout.tsx        # Dashboard layout (nav, user menu, auth guard)
+    └── dashboard/
+        ├── page.tsx              # Dashboard home (profile, projects)
+        ├── billing/page.tsx      # Token balance, packs, checkout, history
+        ├── billing/success/      # Payment success
+        ├── billing/cancel/       # Payment cancelled
+        └── documents/page.tsx    # Upload, list, delete documents
 ```
 
 ## RAG (Retrieval-Augmented Generation)
 
-The app supports RAG using documents uploaded through the web UI. Documents are automatically chunked, embedded, and stored for vector similarity search during chat.
+The app supports RAG using documents uploaded through the web UI.
 
 ### How it works
 
@@ -209,9 +272,31 @@ The app supports RAG using documents uploaded through the web UI. Documents are 
 ### Managing documents
 
 Documents are managed through the web UI at `/dashboard/documents`:
-- **Upload**: Click "Choose File" and select a `.md` or `.txt` file
+- **Upload**: Select a `.md` or `.txt` file (max 2MB)
 - **View**: See all documents with chunk count and token totals
-- **Delete**: Click the trash icon with confirmation dialog
+- **Delete**: Click the trash icon, confirm in dialog
+
+## Testing
+
+### Unit Tests
+
+| Project | Runner | Tests | Command |
+|---------|--------|-------|---------|
+| Backend | Vitest | 163 | `cd backend && pnpm test` |
+| Frontend | Bun | 52 | `cd frontend && bun test` |
+
+### E2E Tests
+
+| Suite | Tests | Description |
+|-------|-------|-------------|
+| auth-flow | 6 | Login, register, logout, navigation |
+| chat-message | 5 | Send, stream response, Enter key, new chat |
+| billing-checkout | 5 | Balance, packs, checkout, transactions |
+| token-consumption | 4 | Balance display, deduction, zero state |
+| document-management | 5 | Upload, list, delete, file validation |
+| rag-document-upload | 3 | Upload + RAG, metadata, chat with sources |
+
+**Total: 28 E2E tests** — Run with `cd e2e && npx playwright test --headed`
 
 ## License
 
