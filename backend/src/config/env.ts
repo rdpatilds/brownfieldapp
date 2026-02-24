@@ -44,9 +44,18 @@ export const env = {
   // Database config (required)
   DATABASE_URL: getRequiredEnv("DATABASE_URL"),
 
-  // OpenRouter config (LLM)
-  OPENROUTER_API_KEY: getRequiredEnv("OPENROUTER_API_KEY"),
+  // LLM provider selection: "openrouter" or "azure"
+  LLM_PROVIDER: getOptionalEnv("LLM_PROVIDER", "openrouter"),
+
+  // OpenRouter config (required when LLM_PROVIDER=openrouter)
+  OPENROUTER_API_KEY: getOptionalEnv("OPENROUTER_API_KEY", ""),
   OPENROUTER_MODEL: getOptionalEnv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5"),
+
+  // Azure OpenAI config (required when LLM_PROVIDER=azure)
+  AZURE_OPENAI_ENDPOINT: getOptionalEnv("AZURE_OPENAI_API_ENDPOINT", ""),
+  AZURE_OPENAI_API_KEY: getOptionalEnv("AZURE_OPENAI_API_KEY", ""),
+  AZURE_OPENAI_DEPLOYMENT: getOptionalEnv("AZURE_OPENAI_DEPLOYMENT", ""),
+  AZURE_OPENAI_API_VERSION: getOptionalEnv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
 
   // RAG config (optional)
   RAG_EMBEDDING_MODEL: getOptionalEnv("RAG_EMBEDDING_MODEL", "openai/text-embedding-3-small"),

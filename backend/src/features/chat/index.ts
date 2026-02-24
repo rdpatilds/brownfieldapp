@@ -1,8 +1,10 @@
 // Errors
 export type { ChatErrorCode } from "./errors";
 export {
+  AzureOpenAIError,
   ChatError,
   ConversationNotFoundError,
+  LLMConfigError,
   OpenRouterError,
   StreamError,
 } from "./errors";
