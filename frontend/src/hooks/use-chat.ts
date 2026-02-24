@@ -66,6 +66,8 @@ export function useChat(options: UseChatOptions = {}) {
   optionsRef.current = options;
   const activeConvIdRef = useRef(activeConversationId);
   activeConvIdRef.current = activeConversationId;
+  const addItemRef = useRef(addItem);
+  addItemRef.current = addItem;
 
   // Fetch messages when selecting a conversation (REST call to backend)
   useEffect(() => {
@@ -97,7 +99,8 @@ export function useChat(options: UseChatOptions = {}) {
     void fetchMessages();
   }, [activeConversationId]);
 
-  // Setup socket listeners
+  // Setup socket listeners — runs once on mount, cleans up on unmount.
+  // Uses refs for callbacks to avoid re-running the effect.
   useEffect(() => {
     let mounted = true;
 
@@ -120,7 +123,7 @@ export function useChat(options: UseChatOptions = {}) {
       socket.on(SERVER_EVENTS.CONVERSATION_CREATED, (payload: ConversationCreatedPayload) => {
         skipNextFetchRef.current = true;
         setActiveConversationId(payload.conversationId);
-        addItem({
+        addItemRef.current({
           id: payload.conversationId,
           title: payload.title,
           updatedAt: new Date().toISOString(),
@@ -185,7 +188,8 @@ export function useChat(options: UseChatOptions = {}) {
       mounted = false;
       disconnectSocket();
     };
-  }, [addItem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string) => {

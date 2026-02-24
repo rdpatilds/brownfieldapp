@@ -8,13 +8,13 @@ This repo contains two standalone projects sharing a single git repository:
 
 ```
 backend/      # Node.js + pnpm — Express 5 + Socket.IO 4 server, Drizzle ORM
-frontend/     # Bun — Next.js 16, React 19, Tailwind CSS 4
+frontend/     # Node.js + npm — Next.js 16, React 19, Tailwind CSS 4
 ```
 
 | Project | Runtime | Package Manager | Test Runner | Key Tech |
 |---------|---------|-----------------|-------------|----------|
 | `backend/` | Node.js (tsx) | pnpm | Vitest | Express 5, Socket.IO 4, Drizzle ORM, Pino |
-| `frontend/` | Bun | Bun | Bun | Next.js 16, React 19, Tailwind 4, shadcn/ui |
+| `frontend/` | Node.js | npm | Vitest | Next.js 16, React 19, Tailwind 4, shadcn/ui |
 
 There is **no shared package**. Shared code lives in `backend/src/shared/` (source of truth). The frontend duplicates only the ~100 lines it needs in `frontend/src/contracts/`.
 
@@ -44,13 +44,14 @@ pnpm run db:studio    # Open Drizzle Studio GUI
 ### Frontend (`cd frontend`)
 
 ```bash
-bun run dev           # Start dev server (next dev)
-bun run build         # Next.js production build
-bun run start         # Start production server
-bun test              # Run tests (Bun test runner)
-bun run lint          # Check lint/format (Biome)
-bun run lint:fix      # Auto-fix lint/format
-bun run format        # Format all files
+npm run dev           # Start dev server (next dev)
+npm run build         # Next.js production build
+npm run start         # Start production server
+npm test              # Run tests (Vitest)
+npm test -- --watch   # Watch mode
+npm run lint          # Check lint/format (Biome)
+npm run lint:fix      # Auto-fix lint/format
+npm run format        # Format all files
 ```
 
 ## Self-Correction Workflow
@@ -66,7 +67,7 @@ Both projects use strict TypeScript and Biome to create a feedback loop for AI-g
 cd backend && pnpm run lint && pnpm run build
 
 # Frontend
-cd frontend && bun run lint && bun run build
+cd frontend && npm run lint && npm run build
 ```
 
 ### Strict TypeScript settings catch real bugs:
@@ -91,15 +92,16 @@ cd backend && pnpm test
 - Use `describe`, `it`, `expect`, `vi` from `vitest`
 - Mocking: `vi.fn()`, `vi.mock()` (NOT `mock()` or `mock.module()`)
 
-### Frontend (Bun)
+### Frontend (Vitest)
 
 ```bash
-cd frontend && bun test
+cd frontend && npm test
 ```
 
 - Test files: `frontend/src/features/{feature}/{name}.test.ts`
 - Component tests: `frontend/src/components/{name}/tests/{name}.test.tsx`
-- Use `describe`, `it`, `expect` from `bun:test`
+- Use `describe`, `it`, `expect`, `vi` from `vitest`
+- Mocking: `vi.fn()`, `vi.mock()`, `vi.hoisted()` (NOT `mock()` or `mock.module()`)
 - React components: use `@testing-library/react` with `render`, `screen`, `userEvent`
 
 ## Tech Stack
@@ -108,7 +110,7 @@ cd frontend && bun test
 - **Backend**: Express 5, Socket.IO 4, Pino (structured logging), Node.js (tsx)
 - **Database**: Supabase (auth + Postgres), Drizzle ORM
 - **Validation**: Zod v4
-- **Tooling**: pnpm (backend), Bun (frontend), Biome (lint + format), TypeScript (strict)
+- **Tooling**: pnpm (backend), npm (frontend), Biome (lint + format), TypeScript (strict)
 
 ## Backend Details (`backend/`)
 
@@ -285,10 +287,10 @@ The frontend communicates with the backend via:
 
 Components are in `frontend/src/components/ui/`. Add new ones with:
 ```bash
-cd frontend && bunx shadcn@canary add <component-name>
+cd frontend && npx shadcn@canary add <component-name>
 ```
 
-**After adding components, run `bun run lint:fix`** to format them.
+**After adding components, run `npm run lint:fix`** to format them.
 
 **Component locations:**
 - `frontend/src/components/ui/` - shadcn primitives (button, dialog, etc.)

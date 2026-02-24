@@ -27,12 +27,12 @@ A real-time AI chat application with RAG (Retrieval-Augmented Generation) suppor
 | Billing | ChargeBee |
 | Validation | Zod v4 |
 | Backend Runtime | Node.js + tsx |
-| Frontend Runtime | Bun |
+| Frontend Runtime | Node.js |
 | Backend Package Manager | pnpm |
-| Frontend Package Manager | Bun |
+| Frontend Package Manager | npm |
 | Linting | Biome |
 | Backend Testing | Vitest |
-| Frontend Testing | Bun test + React Testing Library |
+| Frontend Testing | Vitest + React Testing Library |
 | E2E Testing | Playwright |
 
 ## Project Structure
@@ -57,7 +57,7 @@ chatapp/
 │   ├── tsconfig.json
 │   ├── vitest.config.ts
 │   └── biome.json
-├── frontend/             # Bun — Next.js 16 web app
+├── frontend/             # Node.js + npm — Next.js 16 web app
 │   ├── src/
 │   │   ├── app/          # Next.js App Router pages and layouts
 │   │   ├── components/   # Chat UI, theme, shadcn/ui primitives
@@ -88,7 +88,7 @@ chatapp/
 cd backend && pnpm install
 
 # Frontend
-cd frontend && bun install
+cd frontend && npm install
 
 # E2E (optional)
 cd e2e && npm install && npx playwright install chromium
@@ -119,7 +119,7 @@ cd backend && pnpm run db:migrate
 cd backend && pnpm dev
 
 # Terminal 2: Frontend (http://localhost:3000)
-cd frontend && bun run dev
+cd frontend && npm run dev
 ```
 
 ## Environment Variables
@@ -177,12 +177,12 @@ pnpm run db:studio    # Open Drizzle Studio GUI
 ### Frontend (`cd frontend`)
 
 ```bash
-bun run dev           # Start dev server (next dev, port 3000)
-bun run build         # Next.js production build
-bun run start         # Start production server
-bun test              # Run tests (Bun test, 52 tests)
-bun run lint          # Lint + format check (Biome)
-bun run lint:fix      # Auto-fix lint issues
+npm run dev           # Start dev server (next dev, port 3000)
+npm run build         # Next.js production build
+npm run start         # Start production server
+npm test              # Run tests (Vitest, 52 tests)
+npm run lint          # Lint + format check (Biome)
+npm run lint:fix      # Auto-fix lint issues
 ```
 
 ### E2E Tests (`cd e2e`)
@@ -283,7 +283,7 @@ Documents are managed through the web UI at `/dashboard/documents`:
 | Project | Runner | Tests | Command |
 |---------|--------|-------|---------|
 | Backend | Vitest | 163 | `cd backend && pnpm test` |
-| Frontend | Bun | 52 | `cd frontend && bun test` |
+| Frontend | Vitest | 52 | `cd frontend && npm test` |
 
 ### E2E Tests
 

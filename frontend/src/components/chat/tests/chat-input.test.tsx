@@ -1,6 +1,6 @@
-import { describe, expect, it, mock } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { ChatInput } from "../chat-input";
 
@@ -18,7 +18,7 @@ describe("ChatInput", () => {
   });
 
   it("calls onSend and clears input on submit", async () => {
-    const onSend = mock(() => {});
+    const onSend = vi.fn();
     const user = userEvent.setup();
 
     render(<ChatInput onSend={onSend} disabled={false} />);
@@ -32,7 +32,7 @@ describe("ChatInput", () => {
   });
 
   it("sends on Enter key", async () => {
-    const onSend = mock(() => {});
+    const onSend = vi.fn();
     const user = userEvent.setup();
 
     render(<ChatInput onSend={onSend} disabled={false} />);
@@ -44,7 +44,7 @@ describe("ChatInput", () => {
   });
 
   it("does not send on Shift+Enter", async () => {
-    const onSend = mock(() => {});
+    const onSend = vi.fn();
     const user = userEvent.setup();
 
     render(<ChatInput onSend={onSend} disabled={false} />);
@@ -56,7 +56,7 @@ describe("ChatInput", () => {
   });
 
   it("does not send empty messages", async () => {
-    const onSend = mock(() => {});
+    const onSend = vi.fn();
     const user = userEvent.setup();
 
     render(<ChatInput onSend={onSend} disabled={false} />);

@@ -1,45 +1,44 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock the redirect function
-const mockRedirect = mock(() => {
-  throw new Error("NEXT_REDIRECT");
-});
-
-// Mock Supabase client - use `as never` to avoid strict type checking for mocks
-const mockSignOut = mock(() => Promise.resolve({ error: null }));
-const mockSignInWithPassword = mock(
-  () =>
-    Promise.resolve({
-      data: { user: { id: "123" }, session: {} },
-      error: null,
-    }) as never,
-);
-const mockSignUp = mock(
-  () =>
-    Promise.resolve({
-      data: { user: { id: "123" }, session: {} },
-      error: null,
-    }) as never,
-);
-
-const mockSupabaseClient = {
-  auth: {
-    signOut: mockSignOut,
-    signInWithPassword: mockSignInWithPassword,
-    signUp: mockSignUp,
-  },
-};
+// Hoist mock variables
+const { mockRedirect, mockSignOut, mockSignInWithPassword, mockSignUp } = vi.hoisted(() => ({
+  mockRedirect: vi.fn(() => {
+    throw new Error("NEXT_REDIRECT");
+  }),
+  mockSignOut: vi.fn(() => Promise.resolve({ error: null })),
+  mockSignInWithPassword: vi.fn(
+    () =>
+      Promise.resolve({
+        data: { user: { id: "123" }, session: {} },
+        error: null,
+      }) as never,
+  ),
+  mockSignUp: vi.fn(
+    () =>
+      Promise.resolve({
+        data: { user: { id: "123" }, session: {} },
+        error: null,
+      }) as never,
+  ),
+}));
 
 // Mock modules
-mock.module("next/navigation", () => ({
+vi.mock("next/navigation", () => ({
   redirect: mockRedirect,
 }));
 
-mock.module("@/core/supabase/server", () => ({
-  createClient: () => Promise.resolve(mockSupabaseClient),
+vi.mock("@/core/supabase/server", () => ({
+  createClient: () =>
+    Promise.resolve({
+      auth: {
+        signOut: mockSignOut,
+        signInWithPassword: mockSignInWithPassword,
+        signUp: mockSignUp,
+      },
+    }),
 }));
 
-mock.module("@/core/config/env", () => ({
+vi.mock("@/core/config/env", () => ({
   env: {
     NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co",
     NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
@@ -47,10 +46,10 @@ mock.module("@/core/config/env", () => ({
   },
 }));
 
-// Import after mocking
-const { signOut } = await import("./actions");
-const { login } = await import("@/app/(auth)/login/actions");
-const { register } = await import("@/app/(auth)/register/actions");
+import { login } from "@/app/(auth)/login/actions";
+import { register } from "@/app/(auth)/register/actions";
+// Import after mocking (vi.mock is auto-hoisted)
+import { signOut } from "./actions";
 
 describe("signOut", () => {
   beforeEach(() => {

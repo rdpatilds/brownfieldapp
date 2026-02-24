@@ -7,13 +7,15 @@ import { createClient } from "@/core/supabase/client";
 const BACKEND_URL = process.env["NEXT_PUBLIC_BACKEND_URL"] ?? "http://localhost:4000";
 
 let socket: Socket | null = null;
+let authSubscription: { unsubscribe: () => void } | null = null;
 
 /**
  * Get or create a singleton Socket.IO client connected to the backend.
  * Authenticates using the current Supabase session token.
  */
 export async function getSocket(): Promise<Socket> {
-  if (socket?.connected) {
+  // Return existing socket even if still connecting — prevents duplicate sockets
+  if (socket) {
     return socket;
   }
 
@@ -33,12 +35,16 @@ export async function getSocket(): Promise<Socket> {
     reconnectionDelayMax: 5000,
   });
 
+  // Clean up previous subscription before creating a new one
+  authSubscription?.unsubscribe();
+
   // Handle token refresh on reconnection
-  supabase.auth.onAuthStateChange((_event, newSession) => {
+  const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
     if (socket && newSession?.access_token) {
       socket.auth = { token: newSession.access_token };
     }
   });
+  authSubscription = data.subscription;
 
   return socket;
 }
@@ -47,7 +53,10 @@ export async function getSocket(): Promise<Socket> {
  * Disconnect and clean up the socket connection.
  */
 export function disconnectSocket(): void {
+  authSubscription?.unsubscribe();
+  authSubscription = null;
   if (socket) {
+    socket.removeAllListeners();
     socket.disconnect();
     socket = null;
   }

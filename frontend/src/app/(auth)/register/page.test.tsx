@@ -1,29 +1,38 @@
-import { describe, expect, it, mock } from "bun:test";
 import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Hoist mock variables
+const { mockUseActionState, mockRegister } = vi.hoisted(() => ({
+  mockUseActionState: vi.fn(),
+  mockRegister: vi.fn(() => Promise.resolve({})),
+}));
 
 // Mock the actions module
-mock.module("./actions", () => ({
-  register: mock(() => Promise.resolve({})),
-  RegisterState: {},
+vi.mock("./actions", () => ({
+  register: mockRegister,
 }));
 
 // Mock useActionState with default state
-const mockUseActionState = mock((action: unknown, initialState: { error?: string }) => {
-  return [initialState, action, false];
-});
-
-mock.module("react", () => {
-  const actual = require("react");
+vi.mock("react", async () => {
+  const actual = await vi.importActual("react");
   return {
     ...actual,
     useActionState: mockUseActionState,
   };
 });
 
-// Import after mocking
-const RegisterPage = (await import("./page")).default;
+// Import after mocking (vi.mock is auto-hoisted)
+import RegisterPage from "./page";
 
 describe("RegisterPage", () => {
+  beforeEach(() => {
+    mockUseActionState.mockImplementation((action: unknown, initialState: { error?: string }) => [
+      initialState,
+      action,
+      false,
+    ]);
+  });
+
   it("renders registration form with all fields", () => {
     render(<RegisterPage />);
 
@@ -48,24 +57,20 @@ describe("RegisterPage", () => {
     expect(loginLink).toHaveAttribute("href", "/login");
   });
 
-  it("shows error message when state has error", async () => {
-    mockUseActionState.mockImplementationOnce(() => {
-      return [{ error: "User already exists" }, mock(() => {}), false];
-    });
+  it("shows error message when state has error", () => {
+    mockUseActionState.mockReturnValue([{ error: "User already exists" }, vi.fn(), false]);
 
     render(<RegisterPage />);
 
     expect(screen.getByText("User already exists")).toBeInTheDocument();
   });
 
-  it("shows success message when email confirmation required", async () => {
-    mockUseActionState.mockImplementationOnce(() => {
-      return [
-        { success: true, message: "Check your email for a confirmation link." },
-        mock(() => {}),
-        false,
-      ];
-    });
+  it("shows success message when email confirmation required", () => {
+    mockUseActionState.mockReturnValue([
+      { success: true, message: "Check your email for a confirmation link." },
+      vi.fn(),
+      false,
+    ]);
 
     render(<RegisterPage />);
 
@@ -74,10 +79,8 @@ describe("RegisterPage", () => {
     expect(screen.getByRole("link", { name: /back to login/i })).toBeInTheDocument();
   });
 
-  it("shows loading state when pending", async () => {
-    mockUseActionState.mockImplementationOnce(() => {
-      return [{}, mock(() => {}), true]; // isPending = true
-    });
+  it("shows loading state when pending", () => {
+    mockUseActionState.mockReturnValue([{}, vi.fn(), true]); // isPending = true
 
     render(<RegisterPage />);
 

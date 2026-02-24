@@ -1,27 +1,38 @@
-import { describe, expect, it, mock } from "bun:test";
 import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Hoist mock variables
+const { mockUseActionState, mockLogin } = vi.hoisted(() => ({
+  mockUseActionState: vi.fn(),
+  mockLogin: vi.fn(() => Promise.resolve({})),
+}));
 
 // Mock the actions module
-mock.module("./actions", () => ({
-  login: mock(() => Promise.resolve({})),
-  LoginState: {},
+vi.mock("./actions", () => ({
+  login: mockLogin,
 }));
 
 // Mock useActionState
-mock.module("react", () => {
-  const actual = require("react");
+vi.mock("react", async () => {
+  const actual = await vi.importActual("react");
   return {
     ...actual,
-    useActionState: mock((action: unknown, initialState: { error?: string }) => {
-      return [initialState, action, false];
-    }),
+    useActionState: mockUseActionState,
   };
 });
 
-// Import after mocking
-const LoginPage = (await import("./page")).default;
+// Import after mocking (vi.mock is auto-hoisted)
+import LoginPage from "./page";
 
 describe("LoginPage", () => {
+  beforeEach(() => {
+    mockUseActionState.mockImplementation((action: unknown, initialState: { error?: string }) => [
+      initialState,
+      action,
+      false,
+    ]);
+  });
+
   it("renders login form with email and password fields", () => {
     render(<LoginPage />);
 
@@ -45,21 +56,10 @@ describe("LoginPage", () => {
     expect(registerLink).toHaveAttribute("href", "/register");
   });
 
-  it("shows error message when state has error", async () => {
-    // Re-mock with error state
-    mock.module("react", () => {
-      const actual = require("react");
-      return {
-        ...actual,
-        useActionState: mock(() => {
-          return [{ error: "Invalid credentials" }, mock(() => {}), false];
-        }),
-      };
-    });
+  it("shows error message when state has error", () => {
+    mockUseActionState.mockReturnValue([{ error: "Invalid credentials" }, vi.fn(), false]);
 
-    // Re-import to get new mock
-    const LoginPageWithError = (await import("./page")).default;
-    render(<LoginPageWithError />);
+    render(<LoginPage />);
 
     expect(screen.getByText("Invalid credentials")).toBeInTheDocument();
   });

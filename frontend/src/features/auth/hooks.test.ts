@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock user data
 const mockUser = {
@@ -11,8 +11,13 @@ const mockUser = {
   created_at: "2024-01-01T00:00:00.000Z",
 };
 
-// Mock subscription
-const mockUnsubscribe = mock(() => {});
+// Hoist mock variables so they're available in vi.mock factories
+const { mockUnsubscribe, mockGetUser, mockOnAuthStateChange } = vi.hoisted(() => ({
+  mockUnsubscribe: vi.fn(),
+  mockGetUser: vi.fn(),
+  mockOnAuthStateChange: vi.fn(),
+}));
+
 const mockSubscription = { unsubscribe: mockUnsubscribe };
 
 // Mock auth state change callback holder
@@ -20,27 +25,18 @@ let authStateChangeCallback:
   | ((event: string, session: { user: typeof mockUser } | null) => void)
   | null = null;
 
-// Mock Supabase client
-const mockGetUser = mock(() => Promise.resolve({ data: { user: mockUser }, error: null }));
-const mockOnAuthStateChange = mock((callback: typeof authStateChangeCallback) => {
-  authStateChangeCallback = callback;
-  return { data: { subscription: mockSubscription } };
-});
-
-const mockSupabaseClient = {
-  auth: {
-    getUser: mockGetUser,
-    onAuthStateChange: mockOnAuthStateChange,
-  },
-};
-
 // Mock module
-mock.module("@/core/supabase/client", () => ({
-  createClient: () => mockSupabaseClient,
+vi.mock("@/core/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      getUser: mockGetUser,
+      onAuthStateChange: mockOnAuthStateChange,
+    },
+  }),
 }));
 
-// Import after mocking
-const { useUser } = await import("./hooks");
+// Import after mocking (vi.mock is auto-hoisted)
+import { useUser } from "./hooks";
 
 describe("useUser", () => {
   beforeEach(() => {
@@ -53,6 +49,10 @@ describe("useUser", () => {
     mockGetUser.mockImplementation(() =>
       Promise.resolve({ data: { user: mockUser }, error: null }),
     );
+    mockOnAuthStateChange.mockImplementation((callback: typeof authStateChangeCallback) => {
+      authStateChangeCallback = callback;
+      return { data: { subscription: mockSubscription } };
+    });
   });
 
   afterEach(() => {

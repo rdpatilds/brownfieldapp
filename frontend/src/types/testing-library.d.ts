@@ -1,6 +1,7 @@
 import type { TestingLibraryMatchers } from "@testing-library/jest-dom/matchers";
 
-declare module "bun:test" {
-  interface Matchers<T> extends TestingLibraryMatchers<typeof expect.stringContaining, T> {}
-  interface AsymmetricMatchers extends TestingLibraryMatchers {}
+declare module "vitest" {
+  interface Assertion<T = unknown>
+    extends TestingLibraryMatchers<typeof expect.stringContaining, T> {}
+  interface AsymmetricMatchersContaining extends TestingLibraryMatchers {}
 }
